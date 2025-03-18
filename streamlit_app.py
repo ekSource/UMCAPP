@@ -58,8 +58,8 @@ qa_chain = RetrievalQA.from_chain_type(
 # === Streamlit UI ===
 st.set_page_config(page_title="United Methodist Church Assistant", layout="wide")
 
-# Load and display UMC Logo (you uploaded BrandPromise_Eng_CLR.jpeg)
-st.image("BrandPromise_Eng_CLR.jpeg", width=120)
+# Load and display UMC Logo (you uploaded UMC_LOGO.png)
+st.image("UMC_LOGO.png", width=120)
 
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
