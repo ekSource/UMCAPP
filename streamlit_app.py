@@ -55,44 +55,55 @@ qa_chain = RetrievalQA.from_chain_type(
     chain_type="stuff"
 )
 
-# === Streamlit UI ===
+# === Streamlit UI Setup ===
 st.set_page_config(page_title="United Methodist Church Assistant", layout="wide")
-
-# === Load and display UMC logo ===
 st.image("UMC_LOGO.png", width=120)
-
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
 
-query = st.text_input("🔎 Enter your question:", "")
+# === Initialize session state ===
+if "query" not in st.session_state:
+    st.session_state.query = ""
+if "response" not in st.session_state:
+    st.session_state.response = None
 
+# === Query Input ===
+query = st.text_input("🔎 Enter your question:", value=st.session_state.query)
+
+# === Process New Query ===
 if st.button("Get Answer") and query.strip():
     with st.spinner("Generating response..."):
         response = qa_chain.invoke(query)
+        st.session_state.query = query
+        st.session_state.response = response
         st.success("✅ Response generated")
 
-        # === Nicer Response Formatting ===
-        st.markdown("### 💬 Response")
-        if isinstance(response, dict):
-            st.markdown(f"<b>Question:</b> {response['query']}", unsafe_allow_html=True)
-            st.markdown(f"""<div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
-            {response['result']}
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown(f"""<div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
-            {response}
-            </div>""", unsafe_allow_html=True)
+# === Display Stored Response if Available ===
+if st.session_state.response:
+    resp = st.session_state.response
+    q_text = st.session_state.query
 
-        # === Toggle for Retrieved Source Docs ===
-        if st.checkbox("📄 Show Retrieved Source Documents"):
-            retrieved_docs = vector_store.similarity_search(query, k=5)
-            for i, doc in enumerate(retrieved_docs):
-                meta = doc.metadata
-                st.markdown(f"**Document {i+1}:**")
-                st.markdown(f"- **Part:** {meta.get('part', 'N/A')}")
-                st.markdown(f"- **Section:** {meta.get('section_title', 'N/A')}")
-                st.markdown(f"- **Paragraph #:** {meta.get('paragraph_number', 'N/A')}")
-                st.markdown(f"- **Para Title:** {meta.get('para_title', 'N/A')}")
-                st.markdown(f"- **Sub Para Title:** {meta.get('sub_para_title', 'N/A')}")
-                st.markdown(f"**Content:** {doc.page_content}")
-                st.markdown("---")
+    st.markdown("### 💬 Response")
+    if isinstance(resp, dict):
+        st.markdown(f"<b>Question:</b> {q_text}", unsafe_allow_html=True)
+        st.markdown(f"""<div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
+        {resp['result']}
+        </div>""", unsafe_allow_html=True)
+    else:
+        st.markdown(f"""<div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
+        {resp}
+        </div>""", unsafe_allow_html=True)
+
+    # === Toggle to Show Source Documents ===
+    if st.checkbox("📄 Show Retrieved Source Documents"):
+        retrieved_docs = vector_store.similarity_search(q_text, k=5)
+        for i, doc in enumerate(retrieved_docs):
+            meta = doc.metadata
+            st.markdown(f"**Document {i+1}:**")
+            st.markdown(f"- **Part:** {meta.get('part', 'N/A')}")
+            st.markdown(f"- **Section:** {meta.get('section_title', 'N/A')}")
+            st.markdown(f"- **Paragraph #:** {meta.get('paragraph_number', 'N/A')}")
+            st.markdown(f"- **Para Title:** {meta.get('para_title', 'N/A')}")
+            st.markdown(f"- **Sub Para Title:** {meta.get('sub_para_title', 'N/A')}")
+            st.markdown(f"**Content:** {doc.page_content}")
+            st.markdown("---")
