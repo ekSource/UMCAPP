@@ -40,8 +40,13 @@ vector_store = FAISS(
     index_to_docstore_id={i: str(i) for i in range(len(documents))}
 )
 
-# === Setup OpenAI LLM ===
-llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
+# === Setup OpenAI Chat LLM ===
+llm = ChatOpenAI(
+    temperature=0.6,                     # Slightly more creative
+    max_tokens=2000,                    # Longer responses
+    model_name="gpt-3.5-turbo",
+    openai_api_key=openai_key
+)
 
 # === Setup RAG Chain ===
 qa_chain = RetrievalQA.from_chain_type(
@@ -51,8 +56,12 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 
 # === Streamlit UI ===
-st.set_page_config(page_title="Global Methodist RAG Bot", layout="wide")
-st.title("📘 Global Methodist RAG Assistant")
+st.set_page_config(page_title="United Methodist Church Assistant", layout="wide")
+
+# Load and display UMC Logo (you uploaded BrandPromise_Eng_CLR.jpeg)
+st.image("BrandPromise_Eng_CLR.jpeg", width=120)
+
+st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
 
 query = st.text_input("🔎 Enter your question:", "")
@@ -63,4 +72,25 @@ if st.button("Get Answer") and query.strip():
         st.success("✅ Response generated")
 
         st.markdown("### 💬 Response")
-        st.write(response)
+        # Display formatted answer only
+        if isinstance(response, dict):
+            st.markdown(f"**Question:** {response['query']}")
+            st.markdown(f"**Answer:**\n\n{response['result']}")
+        else:
+            st.markdown(f"**Answer:**\n\n{response}")
+
+        # Optional: Show retrieved source content
+        st.markdown("---")
+        st.markdown("### 📄 Retrieved Source Documents")
+        retrieved_docs = vector_store.similarity_search(query, k=5)
+
+        for i, doc in enumerate(retrieved_docs):
+            meta = doc.metadata
+            st.markdown(f"**Document {i+1}:**")
+            st.markdown(f"- **Part:** {meta.get('part', 'N/A')}")
+            st.markdown(f"- **Section:** {meta.get('section_title', 'N/A')}")
+            st.markdown(f"- **Paragraph #:** {meta.get('paragraph_number', 'N/A')}")
+            st.markdown(f"- **Para Title:** {meta.get('para_title', 'N/A')}")
+            st.markdown(f"- **Sub Para Title:** {meta.get('sub_para_title', 'N/A')}")
+            st.markdown(f"**Content:** {doc.page_content}")
+            st.markdown("---")
