@@ -42,8 +42,8 @@ vector_store = FAISS(
 
 # === Setup OpenAI Chat LLM ===
 llm = ChatOpenAI(
-    temperature=0.3,
-    max_tokens=1000,
+    temperature=0.7,
+    max_tokens=2000,
     model_name="gpt-3.5-turbo",
     openai_api_key=openai_key
 )
@@ -59,7 +59,7 @@ qa_chain = RetrievalQA.from_chain_type(
 st.set_page_config(page_title="United Methodist Church Assistant", layout="wide")
 
 # === Load and display UMC logo ===
-st.image("BrandPromise_Eng_CLR.jpeg", width=120)
+st.image("UMC_LOGO.png", width=120)
 
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
