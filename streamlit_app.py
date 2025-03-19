@@ -55,14 +55,16 @@ st.image("UMC_LOGO.png", width=80)
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
 
-# === Initialize chat history state ===
+# === Initialize chat state ===
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "last_retrieved_docs" not in st.session_state:
+    st.session_state.last_retrieved_docs = []
 
-# === Start New Chat Button ===
+# === Start New Chat Button Fix ===
 if st.button("🧹 Start New Chat"):
-    st.session_state.chat_history = []
-    st.experimental_rerun()
+    st.session_state.clear()
+    st.rerun()
 
 # === Display chat history ===
 for chat in st.session_state.chat_history:
@@ -71,24 +73,40 @@ for chat in st.session_state.chat_history:
     {chat['answer']}
     </div>""", unsafe_allow_html=True)
 
-# === Input for new question ===
+# === Show retrieved docs from LAST response ===
+if st.session_state.last_retrieved_docs:
+    with st.expander("📄 Show Retrieved Source Documents", expanded=False):
+        for i, doc in enumerate(st.session_state.last_retrieved_docs):
+            meta = doc.metadata
+            st.markdown(f"**Document {i+1}:**")
+            st.markdown(f"- **Part:** {meta.get('part', 'N/A')}")
+            st.markdown(f"- **Section:** {meta.get('section_title', 'N/A')}")
+            st.markdown(f"- **Paragraph #:** {meta.get('paragraph_number', 'N/A')}")
+            st.markdown(f"- **Para Title:** {meta.get('para_title', 'N/A')}")
+            st.markdown(f"- **Sub Para Title:** {meta.get('sub_para_title', 'N/A')}")
+            st.markdown(f"**Content:** {doc.page_content}")
+            st.markdown("---")
+
+# === Input for next question (Always shown at bottom) ===
 query = st.text_input("🔎 Enter your question:", "")
 
 if st.button("Send") and query.strip():
-    with st.spinner("Thinking..."):
+    with st.spinner("Generating response..."):
         # === Retrieve top 5 docs ===
         retrieved_docs = vector_store.similarity_search(query, k=5)
+        st.session_state.last_retrieved_docs = retrieved_docs  # Store for source display
 
         # === Build context from last 5 Q&A ===
         history_context = ""
         for qna in st.session_state.chat_history[-5:]:
             history_context += f"Q: {qna['question']}\nA: {qna['answer']}\n\n"
 
-        # === Custom Prompt Template with Chat History ===
+        # === Custom Prompt with Chat Context ===
         prompt_template = """You are an expert assistant on the Book of Doctrines & Discipline of the United Methodist Church.
-
+Using the context provided below, answer the question in a detailed, well-structured, and professional tone.
+Answer only using the text provided. Do not infer or add new information. If the answer is a list, return the list exactly as it appears.
+Provide a thorough response that covers historical context, key figures, timelines, and the impact on the church.
 Use the previous Q&A and reference documents below to answer the user's question in a detailed, well-structured, and professional tone.
-
 ### Previous Q&A (for context):
 {chat_history}
 
@@ -105,38 +123,20 @@ Use the previous Q&A and reference documents below to answer the user's question
             template=prompt_template
         )
 
-        # === Prepare StuffDocumentsChain ===
+        # === Setup LLM Chain ===
         llm_chain = LLMChain(llm=llm, prompt=prompt)
         stuff_chain = StuffDocumentsChain(
             llm_chain=llm_chain,
             document_variable_name="context"
         )
 
-        # === Run chain with chat context + docs ===
+        # === Run chain with history + retrieved docs ===
         response = stuff_chain.run(
             input_documents=retrieved_docs,
             chat_history=history_context,
             question=query
         )
 
-        # === Append new Q&A to session state ===
+        # === Append to chat history ===
         st.session_state.chat_history.append({"question": query, "answer": response})
-
-        # === Display response ===
-        st.markdown(f"**You:** {query}")
-        st.markdown(f"""<div style="background-color: #f1f1f1; padding: 12px; border-radius: 5px; border: 1px solid #ccc;">
-        {response}
-        </div>""", unsafe_allow_html=True)
-
-        # === Toggle for Retrieved Source Documents ===
-        if st.checkbox("📄 Show Retrieved Source Documents"):
-            for i, doc in enumerate(retrieved_docs):
-                meta = doc.metadata
-                st.markdown(f"**Document {i+1}:**")
-                st.markdown(f"- **Part:** {meta.get('part', 'N/A')}")
-                st.markdown(f"- **Section:** {meta.get('section_title', 'N/A')}")
-                st.markdown(f"- **Paragraph #:** {meta.get('paragraph_number', 'N/A')}")
-                st.markdown(f"- **Para Title:** {meta.get('para_title', 'N/A')}")
-                st.markdown(f"- **Sub Para Title:** {meta.get('sub_para_title', 'N/A')}")
-                st.markdown(f"**Content:** {doc.page_content}")
-                st.markdown("---")
+        st.rerun()  # Refresh to show updated chat and source
