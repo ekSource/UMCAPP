@@ -51,7 +51,7 @@ llm = ChatOpenAI(
 
 # === Streamlit UI Setup ===
 st.set_page_config(page_title="United Methodist Church Assistant", layout="wide")
-st.image("UMC_LOGO.png", width=120)
+st.image("UMC_LOGO.png", width=80)
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
 
@@ -75,7 +75,7 @@ for chat in st.session_state.chat_history:
 query = st.text_input("🔎 Enter your question:", "")
 
 if st.button("Send") and query.strip():
-    with st.spinner("Generating response..."):
+    with st.spinner("Thinking..."):
         # === Retrieve top 5 docs ===
         retrieved_docs = vector_store.similarity_search(query, k=5)
 
