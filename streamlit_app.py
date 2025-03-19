@@ -9,6 +9,9 @@ from langchain_community.docstore import InMemoryDocstore
 from langchain_core.documents import Document
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
+from langchain.chains import LLMChain
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from langchain.prompts import PromptTemplate
 
 # === Load OpenAI API key from Streamlit secret ===
 openai_key = st.secrets["OPENAI_API_KEY"]
@@ -44,15 +47,40 @@ vector_store = FAISS(
 llm = ChatOpenAI(
     temperature=0.7,
     max_tokens=2000,
-    model_name="gpt-3.5-turbo",
+    model_name="gpt-4o-mini",
     openai_api_key=openai_key
 )
 
-# === Setup RAG Chain ===
-qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
+# === Custom Prompt Template ===
+prompt_template = """You are an expert assistant on the Book of Doctrines & Discipline of the United Methodist Church.
+
+Using the context provided below, answer the question in a detailed, well-structured, and professional tone.
+
+Provide a thorough response that covers historical context, key figures, timelines, and the impact on the church.
+
+If the context provides multiple perspectives, synthesize them into a cohesive narrative.
+
+### Context:
+{context}
+
+### Question:
+{question}
+
+### Answer:"""
+
+prompt = PromptTemplate.from_template(prompt_template)
+
+# === Combine retrieved documents into single prompt ===
+stuff_chain = StuffDocumentsChain(
+    llm_chain=LLMChain(llm=llm, prompt=prompt),
+    document_variable_name="context"
+)
+
+# === Final RetrievalQA Chain ===
+qa_chain = RetrievalQA(
     retriever=vector_store.as_retriever(search_kwargs={"k": 5}),
-    chain_type="stuff"
+    combine_documents_chain=stuff_chain,
+    return_source_documents=False
 )
 
 # === Streamlit UI Setup ===
