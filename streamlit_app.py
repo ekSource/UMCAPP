@@ -1,7 +1,6 @@
 import streamlit as st
 import faiss
 import json
-import os
 import numpy as np
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -46,7 +45,7 @@ vector_store = FAISS(
 llm = ChatOpenAI(
     temperature=0.7,
     max_tokens=2500,
-    model_name="gpt-4o-mini",
+    model_name="gpt-3.5-turbo",
     openai_api_key=openai_key
 )
 
@@ -56,9 +55,9 @@ st.image("UMC_LOGO.png", width=120)
 st.title("United Methodist Church Assistant")
 st.markdown("Ask a question about the Book of Doctrines & Discipline.")
 
-# === Initialize session state for chat ===
+# === Initialize chat history state ===
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []  # Each item: {"question": "", "answer": ""}
+    st.session_state.chat_history = []
 
 # === Start New Chat Button ===
 if st.button("🧹 Start New Chat"):
@@ -72,28 +71,23 @@ for chat in st.session_state.chat_history:
     {chat['answer']}
     </div>""", unsafe_allow_html=True)
 
-# === Input for next question ===
+# === Input for new question ===
 query = st.text_input("🔎 Enter your question:", "")
 
 if st.button("Send") and query.strip():
     with st.spinner("Generating response..."):
-
-        # === Retrieve relevant docs ===
+        # === Retrieve top 5 docs ===
         retrieved_docs = vector_store.similarity_search(query, k=5)
-        context_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
-        # === Build context from last 5 chat history entries ===
+        # === Build context from last 5 Q&A ===
         history_context = ""
         for qna in st.session_state.chat_history[-5:]:
             history_context += f"Q: {qna['question']}\nA: {qna['answer']}\n\n"
 
-        # === Final context sent to LLM ===
-        full_context = history_context + context_text
-
-        # === Custom prompt with chat context ===
+        # === Custom Prompt Template with Chat History ===
         prompt_template = """You are an expert assistant on the Book of Doctrines & Discipline of the United Methodist Church.
 
-Using the context and previous Q&A below, answer the question in a detailed, well-structured, and professional tone.
+Use the previous Q&A and reference documents below to answer the user's question in a detailed, well-structured, and professional tone.
 
 ### Previous Q&A (for context):
 {chat_history}
@@ -106,30 +100,35 @@ Using the context and previous Q&A below, answer the question in a detailed, wel
 
 ### Answer:"""
 
-        # === Fill in prompt ===
         prompt = PromptTemplate(
             input_variables=["chat_history", "context", "question"],
             template=prompt_template
         )
 
-        # === Setup and run chain ===
+        # === Prepare StuffDocumentsChain ===
         llm_chain = LLMChain(llm=llm, prompt=prompt)
-        response = llm_chain.run({
-            "chat_history": history_context,
-            "context": context_text,
-            "question": query
-        })
+        stuff_chain = StuffDocumentsChain(
+            llm_chain=llm_chain,
+            document_variable_name="context"
+        )
 
-        # === Append to chat history ===
+        # === Run chain with chat context + docs ===
+        response = stuff_chain.run(
+            input_documents=retrieved_docs,
+            chat_history=history_context,
+            question=query
+        )
+
+        # === Append new Q&A to session state ===
         st.session_state.chat_history.append({"question": query, "answer": response})
 
-        # === Display new Q&A ===
+        # === Display response ===
         st.markdown(f"**You:** {query}")
         st.markdown(f"""<div style="background-color: #f1f1f1; padding: 12px; border-radius: 5px; border: 1px solid #ccc;">
         {response}
         </div>""", unsafe_allow_html=True)
 
-        # === Toggle for Retrieved Docs ===
+        # === Toggle for Retrieved Source Documents ===
         if st.checkbox("📄 Show Retrieved Source Documents"):
             for i, doc in enumerate(retrieved_docs):
                 meta = doc.metadata
